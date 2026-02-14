@@ -1,0 +1,36 @@
+# ----------------------------
+# BASE role: create lists + tasks (and read)
+# ----------------------------
+p, role_base, todolist, create
+p, role_base, todolist, read
+
+p, role_base, todoitem, create
+p, role_base, todoitem, read
+p, role_base, todoitem, delete
+
+# ----------------------------
+# SHARE role: Base + share lists
+# ----------------------------
+p, role_share, todolist, share
+
+# ----------------------------
+# ADMIN role: Share + manage users
+# ----------------------------
+p, role_admin, user, create
+p, role_admin, user, delete
+p, role_admin, user, read
+
+# ----------------------------
+# Role hierarchy (cumulative permissions)
+# share inherits base; admin inherits share
+# ----------------------------
+g, role_share, role_base
+g, role_admin, role_share
+
+# ----------------------------
+# Example user-role assignments
+# Sub pode ser username OU userId string (ex: "user:1")
+# ----------------------------
+g, useress1, role_admin
+g, useress5, role_share
+g, useres51, role_base
