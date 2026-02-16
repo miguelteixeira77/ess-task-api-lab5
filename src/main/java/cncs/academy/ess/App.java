@@ -74,6 +74,8 @@ public class App {
         app.get("/user/{userId}", userController::getUser);
         app.delete("/user/{userId}", userController::deleteUser);
         app.post("/login", userController::loginUser);
+        app.post("/user/{userId}/upload", userController::addProfilePicture);
+
 
         // Todo lists routes
         app.post("/todolist", todoListController::createTodoList);
