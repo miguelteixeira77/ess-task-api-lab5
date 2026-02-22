@@ -1,4 +1,4 @@
-name: CI/CD Base (Tests + SAST + Build & Push)
+name: CI (Build, Test, Docker)
 
 on:
   push:
@@ -6,19 +6,18 @@ on:
   pull_request:
 
 jobs:
-  sast_test:
-    name: SAST + Tests + Secret scan
+  build:
     runs-on: ubuntu-latest
 
     permissions:
       contents: read
+      packages: write
       security-events: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      # ---- Secret scanning (Trivy FS secrets) ----
+        
       - name: Run Trivy secret scan (filesystem)
         uses: aquasecurity/trivy-action@0.33.1
         with:
@@ -38,51 +37,21 @@ jobs:
         with:
           name: trivy-secret-results
           path: trivy-secret-results.sarif
-
-      # ---- Build + tests (Maven) ----
-      - name: Set up JDK 21
+          
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
-          cache: maven
 
-      - name: Build & run tests
+      - name: Build with Maven
         run: mvn -B clean verify
 
-  build_push:
-    name: Build & Push Docker image (GHCR)
-    runs-on: ubuntu-latest
-    needs: sast_test
+      - name: Build Docker image
+        run: docker build -t ghcr.io/${{ github.repository }}/todo-service:latest .
 
-    permissions:
-      contents: read
-      packages: write
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Docker metadata (tags/labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository }}/todo-service
-          tags: |
-            type=raw,value=latest
-            type=sha
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+      - name: Push image
+        run: docker push ghcr.io/${{ github.repository }}/todo-service:latest
