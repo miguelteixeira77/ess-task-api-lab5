@@ -51,7 +51,7 @@ jobs:
         run: mvn -B clean verify
 
   build_push:
-    name: Build, Scan & Push Docker image (GHCR) + Cosign
+    name: Build, Scan & Push Docker image (GHCR) + Cosign + SBOM
     runs-on: ubuntu-latest
     needs: sast_test
 
@@ -117,7 +117,10 @@ jobs:
           echo "${{ steps.meta.outputs.tags }}" | tr ',' '\n' | while read tag; do
             echo "Signing $tag."
             cosign sign --yes "$tag"
-                  - name: Generate SBOM (CycloneDX)
+          done
+
+      # ---- 2.g Generate SBOM ----
+      - name: Generate SBOM (CycloneDX)
         uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: ghcr.io/${{ github.repository }}/todo-service:latest
@@ -129,4 +132,3 @@ jobs:
         with:
           name: sbom
           path: sbom.cdx.json
-          done
