@@ -17,7 +17,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        
+      - name: Run Trivy secret scan (filesystem)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'secret'
+          format: 'sarif'
+          output: 'trivy-secret-results.sarif'
 
+      - name: Upload Trivy secret scan to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-secret-results.sarif'
+
+      - name: Upload artifact (Trivy secret results)
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-secret-results
+          path: trivy-secret-results.sarif
+          
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
