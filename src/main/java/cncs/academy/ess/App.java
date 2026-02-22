@@ -4,27 +4,28 @@ import cncs.academy.ess.controller.AuthorizationMiddleware;
 import cncs.academy.ess.controller.TodoController;
 import cncs.academy.ess.controller.TodoListController;
 import cncs.academy.ess.controller.UserController;
-import cncs.academy.ess.repository.sql.SQLTodoListsRepository;
-import cncs.academy.ess.repository.sql.SQLTodoRepository;
-import cncs.academy.ess.repository.sql.SQLUserRepository;
+import cncs.academy.ess.repository.memory.InMemoryTodoListsRepository;
+import cncs.academy.ess.repository.memory.InMemoryTodoRepository;
+import cncs.academy.ess.repository.memory.InMemoryUserRepository;
 import cncs.academy.ess.service.TodoListsService;
 import cncs.academy.ess.service.TodoUserService;
 import cncs.academy.ess.service.TodoService;
 import io.javalin.Javalin;
 import io.javalin.community.ssl.SslPlugin;
-import org.apache.commons.dbcp2.BasicDataSource;
 
 import java.security.NoSuchAlgorithmException;
 
 public class App {
+
     public static void main(String[] args) throws NoSuchAlgorithmException {
 
-        // 🔐 HTTPS configuration
+        // 🔐 HTTPS configuration (cert.pem + key.pem dentro do container)
         SslPlugin sslPlugin = new SslPlugin(conf -> {
             conf.pemFromPath("cert.pem", "key.pem");
         });
 
         Javalin app = Javalin.create(config -> {
+
             // Enable HTTPS
             config.registerPlugin(sslPlugin);
 
@@ -32,28 +33,25 @@ public class App {
             config.bundledPlugins.enableCors(cors -> {
                 cors.addRule(it -> it.anyHost());
             });
-        }).start();
 
-        // Initialize database connection
-        BasicDataSource ds = new BasicDataSource();
-        ds.setDriverClassName("org.postgresql.Driver");
-        String connectURI = "jdbc:postgresql://%s:%s/%s?user=%s&password=%s"
-                .formatted("localhost", "5432", "postgres", "postgres", "changeit");
-        ds.setUrl(connectURI);
+        }).start(); // Sem porta explícita -> usa 80 e 443
 
-        // User management
-        SQLUserRepository userRepository = new SQLUserRepository(ds);
+        // =========================
+        // Repositórios em memória
+        // =========================
+
+        InMemoryUserRepository userRepository = new InMemoryUserRepository();
+        InMemoryTodoListsRepository listsRepository = new InMemoryTodoListsRepository();
+        InMemoryTodoRepository todoRepository = new InMemoryTodoRepository();
+
+        // Services
         TodoUserService userService = new TodoUserService(userRepository);
-        UserController userController = new UserController(userService);
-
-        // Todo lists management
-        SQLTodoListsRepository listsRepository = new SQLTodoListsRepository(ds);
         TodoListsService toDoListService = new TodoListsService(listsRepository);
-        TodoListController todoListController = new TodoListController(toDoListService);
-
-        // Todo items management
-        SQLTodoRepository todoRepository = new SQLTodoRepository(ds);
         TodoService todoService = new TodoService(todoRepository, listsRepository);
+
+        // Controllers
+        UserController userController = new UserController(userService);
+        TodoListController todoListController = new TodoListController(toDoListService);
         TodoController todoController = new TodoController(todoService, toDoListService);
 
         // Authorization middleware
@@ -69,22 +67,24 @@ public class App {
         // Authorization middleware
         app.before(authMiddleware::handle);
 
-        // User management routes
+        // =========================
+        // Routes
+        // =========================
+
+        // User management
         app.post("/user", userController::createUser);
         app.get("/user/{userId}", userController::getUser);
         app.delete("/user/{userId}", userController::deleteUser);
         app.post("/login", userController::loginUser);
         app.post("/user/{userId}/upload", userController::addProfilePicture);
 
-
-        // Todo lists routes
+        // Todo lists
         app.post("/todolist", todoListController::createTodoList);
         app.get("/todolist", todoListController::getAllTodoLists);
         app.get("/todolist/{listId}", todoListController::getTodoList);
         app.post("/todolist/{listId}/share", ctx -> ctx.result("shared"));
 
-
-        // Todo items routes
+        // Todo items
         app.post("/todo/item", todoController::createTodoItem);
         app.get("/todo/{listId}/tasks", todoController::getAllTodoItems);
         app.get("/todo/{listId}/tasks/{taskId}", todoController::getTodoItem);

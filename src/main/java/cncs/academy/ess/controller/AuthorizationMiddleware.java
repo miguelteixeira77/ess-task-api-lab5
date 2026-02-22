@@ -6,6 +6,14 @@ import cncs.academy.ess.security.JwtUtils;
 import io.javalin.http.Context;
 import org.casbin.jcasbin.main.Enforcer;
 
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+
 public class AuthorizationMiddleware {
 
     private final UserRepository userRepository;
@@ -14,11 +22,25 @@ public class AuthorizationMiddleware {
     public AuthorizationMiddleware(UserRepository userRepository) {
         this.userRepository = userRepository;
 
-        // Recomendado: manter em resources/casbin/
-        this.enforcer = new Enforcer(
-                "src/main/resources/casbin/model.conf",
-                "src/main/resources/casbin/policy.csv"
-        );
+        try {
+            String modelPath = resourceToTempFile("casbin/model.conf");
+            String policyPath = resourceToTempFile("casbin/policy.csv");
+            this.enforcer = new Enforcer(modelPath, policyPath);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load Casbin model/policy from resources", e);
+        }
+    }
+
+    private static String resourceToTempFile(String resourcePath) throws IOException {
+        try (InputStream in = AuthorizationMiddleware.class.getClassLoader().getResourceAsStream(resourcePath)) {
+            if (in == null) throw new FileNotFoundException("Resource not found: " + resourcePath);
+
+            String fileName = Paths.get(resourcePath).getFileName().toString();
+            Path temp = Files.createTempFile("casbin-", "-" + fileName);
+            Files.copy(in, temp, StandardCopyOption.REPLACE_EXISTING);
+            temp.toFile().deleteOnExit();
+            return temp.toString();
+        }
     }
 
     public void handle(Context ctx) {
