@@ -1,0 +1,60 @@
+name: Generate SBOM
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+
+  sbom-app:
+    name: Generate SBOM for Application
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Build project
+        run: mvn -DskipTests package
+
+      - name: Generate SBOM (CycloneDX Maven Plugin)
+        run: mvn org.cyclonedx:cyclonedx-maven-plugin:makeAggregateBom
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-application
+          path: target/bom.xml
+
+
+  sbom-image:
+    name: Generate SBOM for Docker Image
+    runs-on: ubuntu-latest
+    needs: sbom-app
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t todo-service .
+
+      - name: Generate SBOM for image (Syft)
+        uses: anchore/sbom-action@v0
+        with:
+          image: todo-service
+          format: cyclonedx-json
+          output-file: sbom-image.json
+
+      - name: Upload SBOM image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-image
+          path: sbom-image.json
