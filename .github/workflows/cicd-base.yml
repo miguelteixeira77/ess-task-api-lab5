@@ -117,4 +117,16 @@ jobs:
           echo "${{ steps.meta.outputs.tags }}" | tr ',' '\n' | while read tag; do
             echo "Signing $tag."
             cosign sign --yes "$tag"
+                  - name: Generate SBOM (CycloneDX)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: ghcr.io/${{ github.repository }}/todo-service:latest
+          format: 'cyclonedx'
+          output: 'sbom.cdx.json'
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.cdx.json
           done
